@@ -220,11 +220,13 @@ usage: train.py [-h] [--model_type MODEL_TYPE] [--anchors_path ANCHORS_PATH]
                 [--annotation_file ANNOTATION_FILE]
                 [--val_annotation_file VAL_ANNOTATION_FILE]
                 [--val_split VAL_SPLIT] [--classes_path CLASSES_PATH]
-                [--batch_size BATCH_SIZE] [--optimizer {adam,rmsprop,sgd}]
+                [--log_directory LOG_DIRECTORY] [--batch_size BATCH_SIZE]
+                [--optimizer {adam,rmsprop,sgd}]
                 [--learning_rate LEARNING_RATE]
                 [--decay_type {None,cosine,exponential,polynomial,piecewise_constant}]
                 [--transfer_epoch TRANSFER_EPOCH]
-                [--freeze_level {None,0,1,2}] [--init_epoch INIT_EPOCH]
+                [--freeze_level {None,0,1,2}]
+                [--unfreeze_level UNFREEZE_LEVEL] [--init_epoch INIT_EPOCH]
                 [--total_epoch TOTAL_EPOCH] [--multiscale]
                 [--rescale_interval RESCALE_INTERVAL]
                 [--enhance_augment {None,mosaic}]
@@ -232,7 +234,7 @@ usage: train.py [-h] [--model_type MODEL_TYPE] [--anchors_path ANCHORS_PATH]
                 [--elim_grid_sense] [--data_shuffle] [--gpu_num GPU_NUM]
                 [--model_pruning] [--eval_online]
                 [--eval_epoch_interval EVAL_EPOCH_INTERVAL]
-                [--save_eval_checkpoint]
+                [--save_eval_checkpoint] [--show_history SHOW_HISTORY]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -257,6 +259,9 @@ optional arguments:
   --classes_path CLASSES_PATH
                         path to class definitions,
                         default=configs/voc_classes.txt
+  --log_directory LOG_DIRECTORY
+                        Logging directory for ModelCheckPoint, default is
+                        current date in logs directory
   --batch_size BATCH_SIZE
                         Batch size for train, default=16
   --optimizer {adam,rmsprop,sgd}
@@ -272,6 +277,9 @@ optional arguments:
   --freeze_level {None,0,1,2}
                         Freeze level of the model in transfer training stage.
                         0:NA/1:backbone/2:only open prediction layer
+  --unfreeze_level UNFREEZE_LEVEL
+                        Unfreeze level of the model in fine tuning stage. Set
+                        percentage of layers you want to unfreeze, like 0.9
   --init_epoch INIT_EPOCH
                         Initial training epochs for fine tune training,
                         default=0
@@ -300,6 +308,9 @@ optional arguments:
                         default=10
   --save_eval_checkpoint
                         Whether to save checkpoint with best evaluation result
+  --show_history SHOW_HISTORY
+                        Show the model's summary at the beginning, may use the
+                        whole screen
 ```
 
 **NOTE**: if enable "--elim_grid_sense" feature during training, recommended to also use it in following demo/inference step.
