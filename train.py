@@ -45,7 +45,7 @@ def main(args):
         log_dir = os.path.join('logs', log_dir_path)
     except TypeError:
         date_now = datetime.now()
-        log_dir_folder_name = f'{date_now.strftime("%Y_%m_%d_%H_%M_%S")}_{args.model_type}_TransferEp_{args.transfer_epoch}_TotalEP_{args.total_epoch}'
+        log_dir_folder_name = f'{date_now.strftime("%Y_%m_%d_%H%M%S")}_{args.model_type}_TransferEp_{args.transfer_epoch}_TotalEP_{args.total_epoch}'
 
         log_dir = os.path.realpath(os.path.join(
             'logs',
