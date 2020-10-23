@@ -17,8 +17,9 @@ class PurgeAmountCheckPointHandler(watchdog.events.FileSystemEventHandler):
         logging.info(f'File {event.src_path} created')
         if not event.is_directory:
             src_path = event.src_path
-            if src_path.endswith('.h5'):
+            if src_path.endswith('.h5') and os.path.split(src_path)[-1] != 'trained_final.h5':
                 self.h5_log_files.append(src_path)
+
                 if len(self.h5_log_files) > self.limit_amount:
                     remove_file = self.h5_log_files.pop(0)
                     logging.warning(f'Files amount already > then {self.limit_amount}, removing {remove_file}')
