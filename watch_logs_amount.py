@@ -14,10 +14,10 @@ class PurgeAmountCheckPointHandler(watchdog.events.FileSystemEventHandler):
         self.limit_amount = limit_amount
 
     def on_created(self, event: watchdog.events.FileCreatedEvent):
-        logging.info(f'File {event.src_path} created')
         if not event.is_directory:
             src_path = event.src_path
             if src_path.endswith('.h5') and os.path.split(src_path)[-1] != 'trained_final.h5':
+                logging.info(f'File {event.src_path} created')
                 self.h5_log_files.append(src_path)
 
                 if len(self.h5_log_files) > self.limit_amount:
