@@ -45,7 +45,7 @@ def main(args):
         log_dir = os.path.join('logs', log_dir_path)
     except TypeError:
         date_now = datetime.now()
-        log_dir_folder_name = f'{date_now.strftime("%Y_%m_%d_%H:%M:%S")}_{args.model_type}_TransferEp_{args.transfer_epoch}_TotalEP_{args.total_epoch}'
+        log_dir_folder_name = f'{date_now.strftime("%Y_%m_%d_%H_%M_%S")}_{args.model_type}_TransferEp_{args.transfer_epoch}_TotalEP_{args.total_epoch}'
 
         log_dir = os.path.realpath(os.path.join(
             'logs',
@@ -68,7 +68,7 @@ def main(args):
     logging = TensorBoard(log_dir=log_dir, histogram_freq=0, write_graph=False, write_grads=False, write_images=False,
                           update_freq='batch')
     checkpoint = ModelCheckpoint(
-        filepath=os.path.join(log_dir, 'ep{epoch:03d}-loss{loss:.3f}-val_loss{val_loss:.3f}.h5'),
+        filepath=log_dir + os.sep + 'ep{epoch:03d}-loss{loss:.3f}-val_loss{val_loss:.3f}.h5',
         monitor='val_loss',
         mode='min',
         verbose=1,

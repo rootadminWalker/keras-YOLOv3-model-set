@@ -19,7 +19,5 @@ sympy
 imgaug~=0.4.0
 imagecorruptions
 bokeh~=2.2.1
-
-tensorflow-gpu~=2.3.1
 pathlib~=1.0.1
 watchdog~=0.10.3
