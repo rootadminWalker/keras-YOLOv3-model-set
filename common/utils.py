@@ -22,15 +22,15 @@ def optimize_tf_gpu(tf, K):
             try:
                 # Currently, memory growth needs to be the same across GPUs
                 for gpu in gpus:
-                    #tf.config.experimental.set_virtual_device_configuration(gpu, [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=10000)])
+                    # tf.config.experimental.set_virtual_device_configuration(gpu, [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=10000)])
                     tf.config.experimental.set_memory_growth(gpu, True)
             except RuntimeError as e:
                 # Memory growth must be set before GPUs have been initialized
                 print(e)
     else:
         config = tf.ConfigProto()
-        config.gpu_options.allow_growth=True   #dynamic alloc GPU resource
-        config.gpu_options.per_process_gpu_memory_fraction = 0.9  #GPU memory threshold 0.3
+        config.gpu_options.allow_growth = True  # dynamic alloc GPU resource
+        config.gpu_options.per_process_gpu_memory_fraction = 0.3  # GPU memory threshold 0.3
         session = tf.Session(config=config)
 
         # set session
@@ -55,18 +55,19 @@ def get_custom_objects():
 
 
 def get_multiscale_list():
-    input_shape_list = [(320,320), (352,352), (384,384), (416,416), (448,448), (480,480), (512,512), (544,544), (576,576), (608,608)]
+    input_shape_list = [(320, 320), (352, 352), (384, 384), (416, 416), (448, 448), (480, 480), (512, 512), (544, 544),
+                        (576, 576), (608, 608)]
 
     return input_shape_list
 
 
-def resize_anchors(base_anchors, target_shape, base_shape=(416,416)):
+def resize_anchors(base_anchors, target_shape, base_shape=(416, 416)):
     '''
     original anchor size is clustered from COCO dataset
     under input shape (416,416). We need to resize it to
     our train input shape for better performance
     '''
-    return np.around(base_anchors*target_shape[::-1]/base_shape[::-1])
+    return np.around(base_anchors * target_shape[::-1] / base_shape[::-1])
 
 
 def get_classes(classes_path):
@@ -76,12 +77,14 @@ def get_classes(classes_path):
     class_names = [c.strip() for c in class_names]
     return class_names
 
+
 def get_anchors(anchors_path):
     '''loads the anchors from a file'''
     with open(anchors_path) as f:
         anchors = f.readline()
     anchors = [float(x) for x in anchors.split(',')]
     return np.array(anchors).reshape(-1, 2)
+
 
 def get_colors(class_names):
     # Generate colors for drawing bounding boxes.
@@ -96,6 +99,7 @@ def get_colors(class_names):
     np.random.seed(None)  # Reset seed to default.
     return colors
 
+
 def get_dataset(annotation_file, shuffle=True):
     with open(annotation_file) as f:
         lines = f.readlines()
@@ -104,9 +108,10 @@ def get_dataset(annotation_file, shuffle=True):
     if shuffle:
         np.random.seed(int(time.time()))
         np.random.shuffle(lines)
-        #np.random.seed(None)
+        # np.random.seed(None)
 
     return lines
+
 
 def draw_label(image, text, color, coords):
     font = cv2.FONT_HERSHEY_PLAIN
@@ -127,6 +132,7 @@ def draw_label(image, text, color, coords):
 
     return image
 
+
 def draw_boxes(image, boxes, classes, scores, class_names, colors, show_score=True):
     if classes is None or len(classes) == 0:
         return image
@@ -139,15 +145,14 @@ def draw_boxes(image, boxes, classes, scores, class_names, colors, show_score=Tr
             label = '{} {:.2f}'.format(class_name, score)
         else:
             label = '{}'.format(class_name)
-        #print(label, (xmin, ymin), (xmax, ymax))
+        # print(label, (xmin, ymin), (xmax, ymax))
 
         # if no color info, use black(0,0,0)
         if colors == None:
-            color = (0,0,0)
+            color = (0, 0, 0)
         else:
             color = colors[cls]
         cv2.rectangle(image, (xmin, ymin), (xmax, ymax), color, 1, cv2.LINE_AA)
         image = draw_label(image, label, color, (xmin, ymin))
 
     return image
-
