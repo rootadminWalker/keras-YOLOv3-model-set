@@ -4,46 +4,45 @@
 Run a YOLOv3/YOLOv2 style detection model on test images.
 """
 
-import colorsys
-import os, sys, argparse
-import cv2
+import argparse
+import os
+import sys
 import time
 from timeit import default_timer as timer
-import tensorflow as tf
-import numpy as np
-from tensorflow.keras import backend as K
-from tensorflow.keras.models import Model, load_model
-from tensorflow.keras.layers import Input, Lambda
-from tensorflow_model_optimization.sparsity import keras as sparsity
-from PIL import Image
 
-from yolo3.model import get_yolo3_model, get_yolo3_inference_model
-from yolo3.postprocess_np import yolo3_postprocess_np
-from yolo2.model import get_yolo2_model, get_yolo2_inference_model
-from yolo2.postprocess_np import yolo2_postprocess_np
+import numpy as np
+import tensorflow as tf
+from PIL import Image
+from tensorflow.keras import backend as K
+from tensorflow.keras.utils import multi_gpu_model
+from tensorflow_model_optimization.sparsity import keras as sparsity
+
 from common.data_utils import preprocess_image
 from common.utils import get_classes, get_anchors, get_colors, draw_boxes, optimize_tf_gpu
-from tensorflow.keras.utils import multi_gpu_model
+from yolo2.model import get_yolo2_model, get_yolo2_inference_model
+from yolo2.postprocess_np import yolo2_postprocess_np
+from yolo3.model import get_yolo3_model, get_yolo3_inference_model
+from yolo3.postprocess_np import yolo3_postprocess_np
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 optimize_tf_gpu(tf, K)
 
-#tf.enable_eager_execution()
+# tf.enable_eager_execution()
 
 default_config = {
-        "model_type": 'tiny_yolo3_darknet',
-        "weights_path": os.path.join('weights', 'yolov3-tiny.h5'),
-        "pruning_model": False,
-        "anchors_path": os.path.join('configs', 'tiny_yolo3_anchors.txt'),
-        "classes_path": os.path.join('configs', 'coco_classes.txt'),
-        "score" : 0.1,
-        "iou" : 0.4,
-        "model_image_size" : (416, 416),
-        "elim_grid_sense": False,
-        "gpu_num" : 1,
-    }
+    "model_type": 'tiny_yolo3_darknet',
+    "weights_path": os.path.join('weights', 'yolov3-tiny.h5'),
+    "pruning_model": False,
+    "anchors_path": os.path.join('configs', 'tiny_yolo3_anchors.txt'),
+    "classes_path": os.path.join('configs', 'coco_classes.txt'),
+    "score": 0.1,
+    "iou": 0.4,
+    "model_image_size": (416, 416),
+    "elim_grid_sense": False,
+    "gpu_num": 1,
+}
 
 
 class YOLO_np(object):
@@ -58,8 +57,8 @@ class YOLO_np(object):
 
     def __init__(self, **kwargs):
         super(YOLO_np, self).__init__()
-        self.__dict__.update(self._defaults) # set up default values
-        self.__dict__.update(kwargs) # and update with user overrides
+        self.__dict__.update(self._defaults)  # set up default values
+        self.__dict__.update(kwargs)  # and update with user overrides
         self.class_names = get_classes(self.classes_path)
         self.anchors = get_anchors(self.anchors_path)
         self.colors = get_colors(self.class_names)
@@ -74,40 +73,43 @@ class YOLO_np(object):
         # Load model, or construct model and load weights.
         num_anchors = len(self.anchors)
         num_classes = len(self.class_names)
-        #YOLOv3 model has 9 anchors and 3 feature layers but
-        #Tiny YOLOv3 model has 6 anchors and 2 feature layers,
-        #so we can calculate feature layers number to get model type
-        num_feature_layers = num_anchors//3
+        # YOLOv3 model has 9 anchors and 3 feature layers but
+        # Tiny YOLOv3 model has 6 anchors and 2 feature layers,
+        # so we can calculate feature layers number to get model type
+        num_feature_layers = num_anchors // 3
 
         try:
             if num_anchors == 5:
                 # YOLOv2 use 5 anchors
-                yolo_model, _ = get_yolo2_model(self.model_type, num_anchors, num_classes, input_shape=self.model_image_size + (3,), model_pruning=self.pruning_model)
+                yolo_model, _ = get_yolo2_model(self.model_type, num_anchors, num_classes,
+                                                input_shape=self.model_image_size + (3,),
+                                                model_pruning=self.pruning_model)
             else:
-                yolo_model, _ = get_yolo3_model(self.model_type, num_feature_layers, num_anchors, num_classes, input_shape=self.model_image_size + (3,), model_pruning=self.pruning_model)
-            yolo_model.load_weights(weights_path) # make sure model, anchors and classes match
+                yolo_model, _ = get_yolo3_model(self.model_type, num_feature_layers, num_anchors, num_classes,
+                                                input_shape=self.model_image_size + (3,),
+                                                model_pruning=self.pruning_model)
+            yolo_model.load_weights(weights_path)  # make sure model, anchors and classes match
             if self.pruning_model:
                 yolo_model = sparsity.strip_pruning(yolo_model)
             yolo_model.summary()
         except Exception as e:
             print(repr(e))
             assert yolo_model.layers[-1].output_shape[-1] == \
-                num_anchors/len(yolo_model.output) * (num_classes + 5), \
+                   num_anchors / len(yolo_model.output) * (num_classes + 5), \
                 'Mismatch between model and given anchor and class sizes'
         print('{} model, anchors, and classes loaded.'.format(weights_path))
-        if self.gpu_num>=2:
+        if self.gpu_num >= 2:
             yolo_model = multi_gpu_model(yolo_model, gpus=self.gpu_num)
 
         return yolo_model
 
-
     def detect_image(self, image):
         if self.model_image_size != (None, None):
-            assert self.model_image_size[0]%32 == 0, 'Multiples of 32 required'
-            assert self.model_image_size[1]%32 == 0, 'Multiples of 32 required'
+            assert self.model_image_size[0] % 32 == 0, 'Multiples of 32 required'
+            assert self.model_image_size[1] % 32 == 0, 'Multiples of 32 required'
 
         image_data = preprocess_image(image, self.model_image_size)
-        #origin image shape, in (height, width) format
+        # origin image shape, in (height, width) format
         image_shape = tuple(reversed(image.size))
 
         start = time.time()
@@ -116,25 +118,28 @@ class YOLO_np(object):
         end = time.time()
         print("Inference time: {:.8f}s".format(end - start))
 
-        #draw result on input image
+        # draw result on input image
         image_array = np.array(image, dtype='uint8')
         image_array = draw_boxes(image_array, out_boxes, out_classes, out_scores, self.class_names, self.colors)
         return Image.fromarray(image_array)
-
 
     def predict(self, image_data, image_shape):
         num_anchors = len(self.anchors)
         if num_anchors == 5:
             # YOLOv2 use 5 anchors
-            out_boxes, out_classes, out_scores = yolo2_postprocess_np(self.yolo_model.predict(image_data), image_shape, self.anchors, len(self.class_names), self.model_image_size, max_boxes=100, elim_grid_sense=self.elim_grid_sense)
+            out_boxes, out_classes, out_scores = yolo2_postprocess_np(self.yolo_model.predict(image_data), image_shape,
+                                                                      self.anchors, len(self.class_names),
+                                                                      self.model_image_size, max_boxes=100,
+                                                                      elim_grid_sense=self.elim_grid_sense)
         else:
-            out_boxes, out_classes, out_scores = yolo3_postprocess_np(self.yolo_model.predict(image_data), image_shape, self.anchors, len(self.class_names), self.model_image_size, max_boxes=100, elim_grid_sense=self.elim_grid_sense)
+            out_boxes, out_classes, out_scores = yolo3_postprocess_np(self.yolo_model.predict(image_data), image_shape,
+                                                                      self.anchors, len(self.class_names),
+                                                                      self.model_image_size, max_boxes=100,
+                                                                      elim_grid_sense=self.elim_grid_sense)
         return out_boxes, out_classes, out_scores
-
 
     def dump_model_file(self, output_model_file):
         self.yolo_model.save(output_model_file)
-
 
 
 class YOLO(object):
@@ -149,8 +154,8 @@ class YOLO(object):
 
     def __init__(self, **kwargs):
         super(YOLO, self).__init__()
-        self.__dict__.update(self._defaults) # set up default values
-        self.__dict__.update(kwargs) # and update with user overrides
+        self.__dict__.update(self._defaults)  # set up default values
+        self.__dict__.update(kwargs)  # and update with user overrides
         self.class_names = get_classes(self.classes_path)
         self.anchors = get_anchors(self.anchors_path)
         self.colors = get_colors(self.class_names)
@@ -165,16 +170,22 @@ class YOLO(object):
         # Load model, or construct model and load weights.
         num_anchors = len(self.anchors)
         num_classes = len(self.class_names)
-        #YOLOv3 model has 9 anchors and 3 feature layers but
-        #Tiny YOLOv3 model has 6 anchors and 2 feature layers,
-        #so we can calculate feature layers number to get model type
-        num_feature_layers = num_anchors//3
+        # YOLOv3 model has 9 anchors and 3 feature layers but
+        # Tiny YOLOv3 model has 6 anchors and 2 feature layers,
+        # so we can calculate feature layers number to get model type
+        num_feature_layers = num_anchors // 3
 
         if num_anchors == 5:
             # YOLOv2 use 5 anchors
-            inference_model = get_yolo2_inference_model(self.model_type, self.anchors, num_classes, weights_path=weights_path, input_shape=self.model_image_size + (3,), confidence=0.1, elim_grid_sense=self.elim_grid_sense)
+            inference_model = get_yolo2_inference_model(self.model_type, self.anchors, num_classes,
+                                                        weights_path=weights_path,
+                                                        input_shape=self.model_image_size + (3,), confidence=0.1,
+                                                        elim_grid_sense=self.elim_grid_sense)
         else:
-            inference_model = get_yolo3_inference_model(self.model_type, self.anchors, num_classes, weights_path=weights_path, input_shape=self.model_image_size + (3,), confidence=0.1, elim_grid_sense=self.elim_grid_sense)
+            inference_model = get_yolo3_inference_model(self.model_type, self.anchors, num_classes,
+                                                        weights_path=weights_path,
+                                                        input_shape=self.model_image_size + (3,), confidence=0.1,
+                                                        elim_grid_sense=self.elim_grid_sense)
 
         inference_model.summary()
         return inference_model
@@ -192,8 +203,8 @@ class YOLO(object):
 
     def detect_image(self, image):
         if self.model_image_size != (None, None):
-            assert self.model_image_size[0]%32 == 0, 'Multiples of 32 required'
-            assert self.model_image_size[1]%32 == 0, 'Multiples of 32 required'
+            assert self.model_image_size[0] % 32 == 0, 'Multiples of 32 required'
+            assert self.model_image_size[1] % 32 == 0, 'Multiples of 32 required'
 
         image_data = preprocess_image(image, self.model_image_size)
 
@@ -207,7 +218,7 @@ class YOLO(object):
         print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
         print("Inference time: {:.8f}s".format(end - start))
 
-        #draw result on input image
+        # draw result on input image
         image_array = np.array(image, dtype='uint8')
         image_array = draw_boxes(image_array, out_boxes, out_classes, out_scores, self.class_names, self.colors)
         return Image.fromarray(image_array)
@@ -223,7 +234,6 @@ class YOLO(object):
         print('export inference model to %s' % str(saved_model_path))
 
 
-
 def detect_video(yolo, video_path, output_path=""):
     import cv2
     vid = cv2.VideoCapture(0 if video_path == '0' else video_path)
@@ -234,11 +244,11 @@ def detect_video(yolo, video_path, output_path=""):
     # to convert it to x264 to reduce file size:
     # ffmpeg -i test.mp4 -vcodec libx264 -f mp4 test_264.mp4
     #
-    #video_FourCC    = cv2.VideoWriter_fourcc(*'XVID') if video_path == '0' else int(vid.get(cv2.CAP_PROP_FOURCC))
-    video_FourCC    = cv2.VideoWriter_fourcc(*'XVID') if video_path == '0' else cv2.VideoWriter_fourcc(*"mp4v")
-    video_fps       = vid.get(cv2.CAP_PROP_FPS)
-    video_size      = (int(vid.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                        int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+    # video_FourCC    = cv2.VideoWriter_fourcc(*'XVID') if video_path == '0' else int(vid.get(cv2.CAP_PROP_FOURCC))
+    video_FourCC = cv2.VideoWriter_fourcc(*'XVID') if video_path == '0' else cv2.VideoWriter_fourcc(*"mp4v")
+    video_fps = vid.get(cv2.CAP_PROP_FPS)
+    video_size = (int(vid.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                  int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT)))
     isOutput = True if output_path != "" else False
     if isOutput:
         print("!!! TYPE:", type(output_path), type(video_FourCC), type(video_fps), type(video_size))
@@ -297,7 +307,8 @@ if __name__ == '__main__':
     '''
     parser.add_argument(
         '--model_type', type=str,
-        help='YOLO model type: yolo3_mobilenet_lite/tiny_yolo3_mobilenet/yolo3_darknet/..., default ' + YOLO.get_defaults("model_type")
+        help='YOLO model type: yolo3_mobilenet_lite/tiny_yolo3_mobilenet/yolo3_darknet/..., default ' + YOLO.get_defaults(
+            "model_type")
     )
 
     parser.add_argument(
@@ -323,13 +334,13 @@ if __name__ == '__main__':
     parser.add_argument(
         '--model_image_size', type=str,
         help='model image input size as <height>x<width>, default ' +
-        str(YOLO.get_defaults("model_image_size")[0])+'x'+str(YOLO.get_defaults("model_image_size")[1]),
-        default=str(YOLO.get_defaults("model_image_size")[0])+'x'+str(YOLO.get_defaults("model_image_size")[1])
+             str(YOLO.get_defaults("model_image_size")[0]) + 'x' + str(YOLO.get_defaults("model_image_size")[1]),
+        default=str(YOLO.get_defaults("model_image_size")[0]) + 'x' + str(YOLO.get_defaults("model_image_size")[1])
     )
 
     parser.add_argument(
         '--elim_grid_sense', default=False, action="store_true",
-        help = "Eliminate grid sensitivity, default " + str(YOLO.get_defaults("elim_grid_sense"))
+        help="Eliminate grid sensitivity, default " + str(YOLO.get_defaults("elim_grid_sense"))
     )
 
     parser.add_argument(
@@ -344,13 +355,13 @@ if __name__ == '__main__':
     Command line positional arguments -- for video detection mode
     '''
     parser.add_argument(
-        "--input", nargs='?', type=str,required=False,default='./path2your_video',
-        help = "Video input path"
+        "--input", nargs='?', type=str, required=False, default='./path2your_video',
+        help="Video input path"
     )
 
     parser.add_argument(
         "--output", nargs='?', type=str, default="",
-        help = "[Optional] Video output path"
+        help="[Optional] Video output path"
     )
     '''
     Command line positional arguments -- for model dump
@@ -370,7 +381,8 @@ if __name__ == '__main__':
     if args.model_image_size:
         height, width = args.model_image_size.split('x')
         args.model_image_size = (int(height), int(width))
-        assert (args.model_image_size[0]%32 == 0 and args.model_image_size[1]%32 == 0), 'model_image_size should be multiples of 32'
+        assert (args.model_image_size[0] % 32 == 0 and args.model_image_size[
+            1] % 32 == 0), 'model_image_size should be multiples of 32'
 
     # get wrapped inference object
     yolo = YOLO_np(**vars(args))
