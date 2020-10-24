@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import glob
 import logging
 import os
 from time import sleep
@@ -9,9 +10,11 @@ import watchdog.events
 
 
 class PurgeAmountCheckPointHandler(watchdog.events.FileSystemEventHandler):
-    def __init__(self, limit_amount: int = 25):
+    def __init__(self, exists_checkpoints: str, limit_amount: int = 25):
         self.h5_log_files = []
         self.limit_amount = limit_amount
+
+        self.h5_log_files.extend(exists_checkpoints)
 
     def on_created(self, event: watchdog.events.FileCreatedEvent):
         if not event.is_directory:
@@ -26,6 +29,13 @@ class PurgeAmountCheckPointHandler(watchdog.events.FileSystemEventHandler):
                     os.remove(remove_file)
 
 
+def find_exists_checkpoint(log_directory: str):
+    exists_checkpoints = glob.glob(os.path.join(log_directory, 'ep*.h5'))
+    
+    exists_checkpoints.sort(key=os.path.getctime)
+    return exists_checkpoints
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
@@ -34,8 +44,12 @@ if __name__ == '__main__':
                         help='How much files you want to keep in the directory')
     args = parser.parse_args()
 
-    event_handler = PurgeAmountCheckPointHandler(limit_amount=args.limit_amount)
     logging.basicConfig(level=logging.INFO)
+
+    exists_checkpoints = find_exists_checkpoint(args.log_directory)
+    logging.info(f'Find exists checkpoints: {",".join(exists_checkpoints)}')
+    event_handler = PurgeAmountCheckPointHandler(exists_checkpoints=exists_checkpoints, limit_amount=args.limit_amount)
+
     observer = watchdog.observers.Observer()
 
     observer.schedule(event_handler=event_handler, path=args.log_directory, recursive=True)
