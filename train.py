@@ -9,6 +9,7 @@ import time
 from datetime import datetime
 
 import numpy as np
+import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint, ReduceLROnPlateau, EarlyStopping, TerminateOnNaN
 from tensorflow_model_optimization.sparsity import keras as sparsity
@@ -25,8 +26,6 @@ from yolo3.model import get_yolo3_train_model
 os.environ['TF_ENABLE_AUTO_MIXED_PRECISION'] = '1'
 os.environ['TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_IGNORE_PERFORMANCE'] = '1'
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-
-import tensorflow as tf
 
 optimize_tf_gpu(tf, K)
 
@@ -228,7 +227,7 @@ def main(args):
     """
     Transfer training steps, train with freeze layers
     """
-    model.fit_generator(
+    model.fit(
         data_generator(
             annotation_lines=dataset[:num_train],
             batch_size=args.batch_size,
@@ -297,9 +296,9 @@ def main(args):
     Fine-tuning steps, more memory will be used. LR (Learning Rate) will be decayed
     """
     # model.fit_generator(train_data_generator,
-    model.fit_generator(
+    model.fit(
         # The YOLO data augmentation generator tool
-        generator=data_generator(
+        data_generator(
             annotation_lines=dataset[:num_train],
             batch_size=args.batch_size,
             input_shape=input_shape,
